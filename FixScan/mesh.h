@@ -20,7 +20,7 @@ signals:
 	void meshSignal(QByteArray);//The mainwindow receive this signal contains data 
 private slots:
     void on_pushButton_mesh_clicked();
-	void typeCBox_changed(int index);
+	void typeCBox_changed(QString index);
 private:
     Ui::mesh *ui;
 };

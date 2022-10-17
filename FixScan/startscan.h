@@ -26,6 +26,7 @@ public:
     ~startScan();
 signals:
 	void startScanSignal(QByteArray);//The mainwindow receive this signal
+	void Signal_HdrStateChanged(int);
 
 private slots:
     void on_pushButton_clicked();

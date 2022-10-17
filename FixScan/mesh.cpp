@@ -9,8 +9,8 @@ mesh::mesh(QWidget *parent) :
 {
     ui->setupUi(this);
 	this->setWindowTitle("Mesh");
-	//ui->comboBox_2->setDisabled(true);
-	QObject::connect(ui->comboBox_type, SIGNAL(QComboBox::currentIndexChanged(int)), this, SLOT(mesh::typeCBox_changed(int)));
+	ui->comboBox_2->setDisabled(true);
+    QObject::connect(ui->comboBox_type, &QComboBox::currentTextChanged, this, &mesh::typeCBox_changed);
 }
 
 mesh::~mesh()
@@ -33,9 +33,9 @@ void mesh::on_pushButton_mesh_clicked()
 	this->hide();
 }
 
-void mesh::typeCBox_changed(int index)
+void mesh::typeCBox_changed(QString index)
 {
-	if (index == 0)
+	if (index == "MT_NON_WATERTIGHT")
 		ui->comboBox_2->setDisabled(true);
 	else
 		ui->comboBox_2->setDisabled(false);

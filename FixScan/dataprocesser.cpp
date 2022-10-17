@@ -135,7 +135,7 @@ QPixmap DataProcesser::createPixmap(unsigned char* data, int width, int height, 
 				pDataColor[i * 3 + 1] = 0;
 				pDataColor[i * 3 + 2] = 0;
 			}
-		}// ÏÔÊ¾ºìÉ« add by lzy
+		}// æ˜¾ç¤ºçº¢è‰² add by lzy
 	}
 
 	QMatrix left_matrix_;

@@ -21,6 +21,7 @@ MainWindow::MainWindow(QWidget *parent) :
 	widget_step[2] = ui->widget_step3;
 	widget_step[3] = ui->widget_step4;
 	widget_step[4] = ui->widget_step5;
+	ui->tabWidget->setCurrentIndex(0);
 
 	ui->checkBox_SaveFrameImage->setVisible(false);
 	ui->checkBox_IncreseFrameRate->setVisible(false);
@@ -53,7 +54,8 @@ MainWindow::MainWindow(QWidget *parent) :
 	m_dataProcesser = new DataProcesser(this, m_zmqContext);
 	m_dataProcesser->moveToThread(m_dataProcesserThread);
 	//connect(m_dataProcesserThread, &QThread::finished, m_dataProcesser, &QObject::deleteLater);
-	connect(m_dataProcesser, &DataProcesser::videoImageReady, this, &MainWindow::onVideoImageReady, Qt::QueuedConnection);
+    connect(m_dataProcesser, &DataProcesser::videoImageReady, this, &MainWindow::onVideoImageReady, Qt::QueuedConnection);
+    connect(m_dataProcesser, &DataProcesser::sharedMemoryMsg, this, &MainWindow::onSharedMemoryMsg, Qt::QueuedConnection);
 	m_dataProcesserThread->start();
 
 	QMetaObject::invokeMethod(m_subscriber, "setup", Qt::QueuedConnection, Q_ARG(QString, "tcp://localhost:11398"));
@@ -136,6 +138,16 @@ MainWindow::MainWindow(QWidget *parent) :
 
 	connect(m_simplify, &Simplify::simplifySignal, this, &MainWindow::onSimplify);
 	connect(m_startScan, &startScan::startScanSignal, this, &MainWindow::onStartScan);
+	connect(m_startScan, &startScan::Signal_HdrStateChanged, [=](int state){
+		if (Qt::Checked == state)
+		{
+			ui->brightnessSlider->setEnabled(false);
+		}
+		else if (Qt::Unchecked == state)
+		{
+			ui->brightnessSlider->setEnabled(true);
+		}
+	});
 
 	connect(m_mesh, &mesh::meshSignal, this, &MainWindow::onMesh);
 	connect(m_save, &save::saveSignal, this, &MainWindow::onSave);
@@ -143,7 +155,7 @@ MainWindow::MainWindow(QWidget *parent) :
 	ui->lineEdit_OpenProject->setEnabled(false);
 	//ui->comboBox_scanExportFile->setHidden(true);
 
-	connect(ui->brightnessSlider, &QSlider::valueChanged, this, &MainWindow::brightnessChanged);
+	connect(ui->brightnessSlider, &QSlider::sliderReleased, this, &MainWindow::brightnessChanged);
 }
 
 MainWindow::~MainWindow()
@@ -172,6 +184,26 @@ bool MainWindow::hasMore(void* socket)
 	qDebug() << "hasMore:" << more <<"andRc:"<<rc<< endl;
 
 	return more != 0;
+}
+
+void MainWindow::applyEdit(const QString& namesStr)
+{
+    qDebug() << " applyEdit name: " << namesStr;
+    const char *sendData = "v1.0/scan/applyEdit";
+    int nbytes = zmq_send(m_zmqReqSocket, sendData, strlen(sendData), ZMQ_SNDMORE);
+    if (nbytes != strlen(sendData)) {
+        qWarning() << "cannot send applyEdit  ZMQ_SNDMORE " << "nbytes" << nbytes;
+        return;
+    }
+    nbytes = zmq_send(m_zmqReqSocket, namesStr.toLocal8Bit(), namesStr.toLocal8Bit().size(), 0);
+    if (nbytes != namesStr.toLocal8Bit().size()) {
+        qWarning() << "cannot send applyEdit";
+        return;
+    }
+    int result = 0;
+    nbytes = zmq_recv(m_zmqReqSocket, &result, sizeof(int), 0);
+    qDebug() << "applyEdit recv reply data:" << (result == 0 ? false : true);
+    assert(!hasMore(m_zmqReqSocket));
 }
 
 void MainWindow::nextStep(int num)
@@ -413,7 +445,7 @@ void MainWindow::on_pushButton_RegisterProcesser_clicked()
 		m_dataProcesserThread->start();
 	}
 
-	//note: ·ÀÖ¹°´Å¥µã»÷¶à´Î£¬Ó°Ïì½ÓÊÕSDK SnPlatform µÄÐÄÌø°ü 20190701;
+	//note: é˜²æ­¢æŒ‰é’®ç‚¹å‡»å¤šæ¬¡ï¼Œå½±å“æŽ¥æ”¶SDK SnPlatform çš„å¿ƒè·³åŒ… 20190701;
 	ui->pushButton_RegisterProcesser->setEnabled(false);
 	ui->pushButton_UnregisterProcesser->setEnabled(true);
 
@@ -425,7 +457,7 @@ void MainWindow::on_pushButton_RegisterProcesser_clicked()
 
 void MainWindow::on_pushButton_UnregisterProcesser_clicked()
 {
-	//note: Ó°ÏìÒµÎñÂß¼­£¬ÏÞÖÆÖ»ÄÜunregisterÒ»´Î
+	//note: å½±å“ä¸šåŠ¡é€»è¾‘ï¼Œé™åˆ¶åªèƒ½unregisterä¸€æ¬¡
 	// 	if (m_zmqDataProcesserSocket) return;
 	// 
 	// 	m_zmqDataProcesserSocket = zmq_socket(m_zmqContext, ZMQ_REP);
@@ -454,7 +486,7 @@ void MainWindow::on_pushButton_UnregisterProcesser_clicked()
 
 	//m_dataProcesser->setThreadLoop(false);
 
-	//note: ÏÈ·¢ËÍ¡°unregister¡±ÇëÇó£¬È»ºóÔÚÖÕÖ¹Ïß³Ì£¬·ñÔò»áÒýÆðµ±Ç°¿Í»§¶ËÃ»ÓÐµ÷ÓÃzmq_send »Ø¸´sdk£¬ÒýÆðsdk Êý¾Ý×èÈû;
+	//note: å…ˆå‘é€â€œunregisterâ€è¯·æ±‚ï¼Œç„¶åŽåœ¨ç»ˆæ­¢çº¿ç¨‹ï¼Œå¦åˆ™ä¼šå¼•èµ·å½“å‰å®¢æˆ·ç«¯æ²¡æœ‰è°ƒç”¨zmq_send å›žå¤sdkï¼Œå¼•èµ·sdk æ•°æ®é˜»å¡ž;
 	if (m_dataProcesserThread->isRunning()){
 		m_dataProcesserThread->terminate();
 		//m_dataProcesserThread->wait();
@@ -568,8 +600,9 @@ void MainWindow::on_pushButton_step5Refresh_clicked()
 }
 
 
-void MainWindow::brightnessChanged(int index)
+void MainWindow::brightnessChanged()
 {
+    int index = ui->brightnessSlider->value();
 	const char *sendData = "v1.0/scan/currentBrightness/set";
 	int nbytes = zmq_send(m_zmqReqSocket, sendData, strlen(sendData), ZMQ_SNDMORE);
 	if (nbytes != strlen(sendData)) {
@@ -578,6 +611,7 @@ void MainWindow::brightnessChanged(int index)
 	}
 
 	QString str = QString::number(index);
+    qDebug() << " brightness changed. current index: " << index;
 	nbytes = zmq_send(m_zmqReqSocket, str.toLocal8Bit().constData(), str.size(), 0);
 	if (nbytes != str.size()) {
 		qWarning() << "cannot send brightness value" << "nbytes" << nbytes;
@@ -636,6 +670,16 @@ void MainWindow::on_pushButton_Pause_clicked()
 	m_startScan->setAction("pause");
 	m_startScan->show();
 	m_startScan->setSubType(0);
+}
+
+void MainWindow::on_pushButton_globalRegistertion_clicked()
+{
+	const char *sendData = "v1.0/scan/globalRegistertion";
+	int nbytes = zmq_send(m_zmqReqSocket, sendData, strlen(sendData), 0);
+	char buf[MAX_DATA_LENGTH + 1] = { 0 };
+	nbytes = zmq_recv(m_zmqReqSocket, buf, MAX_DATA_LENGTH, 0);
+	qDebug() << "global Registertion:" << buf;
+	assert(!hasMore(m_zmqReqSocket));
 }
 
 void MainWindow::ScanNoMarkerDetected()
@@ -721,6 +765,8 @@ void MainWindow::on_pushButton_ScaneEnterScan_clicked()
 	nbytes = zmq_recv(m_zmqReqSocket, &result, sizeof(int), 0);
 	qDebug() << "enterScan recv reply data:" << (result == 0 ? false : true);
 	assert(!hasMore(m_zmqReqSocket));
+
+    on_pushButton_RegisterProcesser_clicked();// è¿›å…¥æ‰«æå°±æ‰“å¼€è§†é¢‘æµ
 }
 
 void MainWindow::onNewProject(QByteArray sendMore)
@@ -748,6 +794,7 @@ void MainWindow::onNewProject(QByteArray sendMore)
 
 void MainWindow::onStartScan(QByteArray sendMore)
 {
+    m_nameStr.clear();
 	char buf[MAX_DATA_LENGTH + 1] = { "v1.0/scan/control" };
 	const char *sendData = buf;
 	int nbytes = zmq_send(m_zmqReqSocket, sendData, strlen(sendData), ZMQ_SNDMORE);
@@ -895,7 +942,17 @@ void MainWindow::onSimplify(QByteArray sendMore)
 
 void MainWindow::closeEvent(QCloseEvent *event)
 {
-	
+	const auto exitScan = [&]() -> void{
+		m_progressDialog->setWindowTitle("Exit Scan");
+		const char *sendData = "v1.0/scan/exitScan";
+		int nbytes = zmq_send(m_zmqReqSocket, sendData, strlen(sendData), 0);
+		int result = 0;
+		nbytes = zmq_recv(m_zmqReqSocket, &result, sizeof(int), 0);
+		qDebug() << "exitScan recv reply data:" << (result == 0 ? false : true);
+		assert(!hasMore(m_zmqReqSocket));
+	};
+
+	exitScan();	
 	m_subscriberThread->quit();
 	m_subscriberThread->exit(0);
 	connect(m_subscriberThread, SIGNAL(finished()), m_subscriberThread, SLOT(deleteLater()));
@@ -1053,7 +1110,7 @@ void MainWindow::onPublishReceived(QString majorCmd, QString minorCmd, QByteArra
 		qDebug() << "finishAsyncAction json object:" << jsonObj;
 		auto type = jsonObj["type"].toString();
 		auto props = jsonObj["props"].toObject();
-		auto result = jsonObj["result"].toString();
+        auto result = jsonObj["result"].toObject();
 		if (props["type"] != QJsonValue::Undefined) {
 			
 		}
@@ -1078,6 +1135,12 @@ void MainWindow::onPublishReceived(QString majorCmd, QString minorCmd, QByteArra
 
 		m_progressDialog->onFinishAsync();
 		ui->pushButton_PauseTurnable->setDisabled(true);
+
+        if ("AAT_FIX_SCAN" == type)
+        {
+            if (result["success"].toBool())
+                applyEdit(m_nameStr);
+        }
 		qDebug() << "type" << type << "\n" << "props" << propsByte << endl;
 	}
 	else if (majorCmd == QStringLiteral("progress")) {
@@ -1087,13 +1150,25 @@ void MainWindow::onPublishReceived(QString majorCmd, QString minorCmd, QByteArra
 	}
 	else if (majorCmd == QStringLiteral("device")){
 		if (minorCmd == QStringLiteral("firmwareUpgradable")){
-			//¼ì²âµ½¿ÉÒÔ½øÐÐ¹Ì¼þÉý¼¶
+			//æ£€æµ‹åˆ°å¯ä»¥è¿›è¡Œå›ºä»¶å‡çº§
 			QMessageBox msgBox;
 			msgBox.setText(QStringLiteral("Update firmware!!!"));
 			msgBox.setInformativeText(QStringLiteral("Do you want to update this firmware ?"));
 			msgBox.setStandardButtons(QMessageBox::Discard | QMessageBox::Ok);
 			msgBox.setDefaultButton(QMessageBox::Ok);
 			int ret = msgBox.exec();
+		}
+		else if (minorCmd == QStringLiteral("status"))
+		{
+			qDebug() << "Devices Status: " << QString(data);
+			//if (QString(data) == "DS_OFFLINE")
+			//{
+			//	QMessageBox::information(this, QStringLiteral("information"), QStringLiteral("device not connect!"));
+			//}
+			//else if (QString(data) == "DS_ONLINE")
+			//{
+			//	QMessageBox::information(this, QStringLiteral("information"), QStringLiteral("device connect success"));
+			//}
 		}
 	}
 	else if (majorCmd == QStringLiteral("scan")) {
@@ -1218,6 +1293,21 @@ void MainWindow::onVideoImageReady(int camID, QPixmap pixmap)
 		ui->label_Cam1->setScaledContents(true);
 		ui->label_Cam1->setPixmap(pixmap.transformed(matrix, Qt::SmoothTransformation));
 	}
+}
+
+void MainWindow::onSharedMemoryMsg(QString type, QByteArray msg)
+{
+    if (type == QStringLiteral("MT_RANGE_DATA"))
+    {
+        auto jsonDoc = QJsonDocument::fromJson(msg);
+        qDebug() << " onSharedMemoryMsg jsonDoc: " << jsonDoc;
+        QJsonObject jsonObject = jsonDoc.object();
+        QJsonObject jsonprops = jsonObject["name"].toObject();
+        QString str = jsonObject["name"].toString();
+        m_nameStr += (str + ";");
+
+        qDebug() << " onSharedMemoryMsg m_nameStr: " << m_nameStr;
+    }
 }
 
 void MainWindow::execTerminate()

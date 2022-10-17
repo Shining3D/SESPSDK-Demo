@@ -51,6 +51,8 @@ public:
 	Check if there is any data received
 	*/
 	bool hasMore(void* socket);
+    
+    void applyEdit(const QString& namesStr);
 private slots:
 //There are some SDK test function ,  refer to SDK Doc
 	void on_pushButton_DeviceCheck_clicked();// The button on the interface press to trigger,refer to SDK Doc
@@ -75,7 +77,7 @@ private slots:
 	void on_pushButton_Pre_clicked();
 	void on_pushButton_start_clicked();
 	void on_pushButton_Pause_clicked();
-
+	void on_pushButton_globalRegistertion_clicked();
 
 	//To receive shared memories,
 	void on_pushButton_RegisterProcesser_clicked();
@@ -113,6 +115,8 @@ private slots:
 	This function to show video
 	*/
 	void onVideoImageReady(int camID, QPixmap pixmap);
+    
+    void onSharedMemoryMsg(QString, QByteArray);
 private:
 	void execTerminate();
 public:
@@ -146,6 +150,7 @@ private:
 	ReportError *m_reportError;
 	bool m_bSimplify;
 
+    QString m_nameStr;
 public slots://Response signal to  call SDK interface  
 	void onNewProject(QByteArray);
 	void onStartScan(QByteArray);
@@ -167,7 +172,7 @@ public slots://Response signal to  call SDK interface
 	void on_pushButton_OpenProOpen_clicked();
 	void on_pushButton_step5Refresh_clicked();
 
-	void brightnessChanged(int index);
+	void brightnessChanged();
 
 protected:
 	void closeEvent(QCloseEvent *event);//When the main thread  exit,it exits the sub-thread
